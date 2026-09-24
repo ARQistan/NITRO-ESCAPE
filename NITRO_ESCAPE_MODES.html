@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Nitro Escape</title>
+<style>
+*{margin:0;box-sizing:border-box}
+html,body{height:100%;overflow:hidden;background:#000}
+body{font-family:Arial,Helvetica,sans-serif}
+canvas{position:fixed;top:0;left:0;display:block}
+#hud{position:fixed;top:0;left:0;right:0;padding:14px 16px;padding-top:calc(14px + env(safe-area-inset-top,0px));pointer-events:none;z-index:5}
+#barWrap{background:#1c2333;border:2px solid #3a4560;border-radius:9px;height:26px;overflow:hidden;position:relative;max-width:520px}
+#bar{height:100%;width:100%;background:linear-gradient(90deg,#1fdc5a,#9be82a);transition:width .15s linear,background .3s}
+#barLabel{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:12px;letter-spacing:1px;text-shadow:0 1px 3px #000}
+@keyframes barhit{0%{transform:translateX(0)}20%{transform:translateX(-7px)}40%{transform:translateX(7px)}60%{transform:translateX(-5px)}80%{transform:translateX(5px)}100%{transform:translateX(0)}}
+#barWrap.hit{animation:barhit .4s;box-shadow:0 0 16px 3px #ff2222}
+#score{color:#eaf0ff;margin-top:8px;font-size:14px;text-shadow:0 1px 3px #000}
+#flash{position:fixed;inset:0;background:#ff0000;opacity:0;pointer-events:none;z-index:6;transition:opacity .15s}
+#speedVignette{position:fixed;inset:0;pointer-events:none;z-index:4;background:radial-gradient(ellipse at center,transparent 34%,rgba(0,0,0,.68) 100%);opacity:0}
+#speedLines{position:fixed;inset:-25%;pointer-events:none;z-index:3;opacity:0;background:repeating-linear-gradient(100deg,transparent 0 22px,rgba(255,255,255,.075) 23px 25px,transparent 26px 58px);filter:blur(.35px);transform:perspective(320px) rotateX(68deg) scale(1.35);transform-origin:center bottom;mix-blend-mode:screen;animation:streaks .16s linear infinite}
+@keyframes streaks{from{background-position:0 0}to{background-position:55px 120px}}
+#boostMsg{position:fixed;top:38%;left:50%;transform:translate(-50%,-50%);font-size:44px;font-weight:900;color:#39ff6a;text-shadow:0 0 22px #39ff6a;opacity:0;pointer-events:none;z-index:7;letter-spacing:2px}
+#quiz{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(5,8,16,.8);z-index:10;padding:20px}
+#qbox{background:#151a28;border:2px solid #2f8bff;border-radius:14px;padding:26px;max-width:440px;width:100%;color:#fff;box-shadow:0 10px 40px rgba(0,0,0,.5)}
+#qcount{font-size:12px;color:#7fb6ff;font-weight:800;letter-spacing:1px;text-transform:uppercase;margin-bottom:8px}
+#qtext{font-size:17px;margin-bottom:16px;font-weight:700;line-height:1.4}
+.choice{display:block;width:100%;margin:8px 0;padding:12px 14px;background:#212a3d;border:2px solid #3a4560;border-radius:9px;color:#fff;font-size:14px;cursor:pointer;text-align:left;transition:border-color .15s,background .15s}
+.choice:hover{border-color:#2f8bff;background:#26314a}
+#over{position:fixed;inset:0;background:#000;opacity:0;display:none;align-items:center;justify-content:center;flex-direction:column;color:#fff;z-index:26;text-align:center;transition:opacity 1s;padding:20px}
+#over h1{font-size:clamp(22px,5vw,34px);margin-bottom:14px;color:#ff3b3b;letter-spacing:1px}
+#over p{font-size:18px;margin:5px 0;opacity:0;transition:opacity 1s}
+#overBtns{margin-top:22px;display:flex;gap:12px;flex-wrap:wrap;justify-content:center;opacity:0;pointer-events:none;transition:opacity 1s}
+#over button{padding:13px 30px;font-size:16px;background:#2f8bff;border:none;border-radius:9px;color:#fff;cursor:pointer;font-weight:700}
+#over #menuBtn{background:#2a3350}
+#mobileControls{position:fixed;left:0;right:0;bottom:0;padding:14px max(14px,env(safe-area-inset-right,0px)) calc(14px + env(safe-area-inset-bottom,0px)) max(14px,env(safe-area-inset-left,0px));display:none;justify-content:space-between;align-items:flex-end;z-index:25;pointer-events:none;user-select:none;-webkit-user-select:none}
+.mobilePad{display:grid;grid-template-columns:repeat(2,62px);gap:10px;pointer-events:auto}
+.mobilePad.speed{grid-template-columns:62px;gap:10px}
+.mobileBtn{width:62px;height:62px;border:2px solid rgba(255,255,255,.28);border-radius:16px;background:rgba(18,25,40,.82);color:#fff;font-size:27px;font-weight:900;box-shadow:0 6px 18px rgba(0,0,0,.35);touch-action:none;-webkit-tap-highlight-color:transparent}
+.mobileBtn:active,.mobileBtn.active{background:rgba(47,139,255,.88);transform:scale(.96)}
+.mobileLabel{display:none}
+@media (pointer:coarse), (max-width:800px){#mobileControls{display:flex}}
+@media (max-width:520px){#qbox{padding:20px;max-height:88vh;overflow:auto}.choice{padding:11px 12px;font-size:13px}.mobileBtn{width:58px;height:58px}.mobilePad{grid-template-columns:repeat(2,58px)}.mobilePad.speed{grid-template-columns:58px}}
+#start{position:fixed;inset:0;background:rgba(4,7,14,.92);display:flex;align-items:center;flex-direction:column;overflow:auto;color:#fff;z-index:30;text-align:center;padding:24px}
+#start h1{font-size:clamp(24px,6vw,34px);margin-bottom:16px}
+#start p{max-width:480px;line-height:1.6;margin-bottom:20px;font-size:14px;color:#cdd6ea}
+#start>h1{margin-top:auto}
+#modes{display:flex;gap:14px;width:100%;max-width:520px;margin-bottom:auto}
+.mode{flex:1;text-align:left;padding:16px;background:#151a28;border:2px solid var(--c);border-radius:14px;color:#fff;font-family:inherit;cursor:pointer;transition:background .15s,transform .15s}
+.mode:hover,.mode:focus-visible{background:#1e2740;outline:none}
+.mode:active{transform:scale(.98)}
+.mode b{display:block;font-size:20px;margin-bottom:6px;color:var(--c)}
+.mode span{display:block;font-size:13px;line-height:1.5;color:#cdd6ea}
+.mode small{display:block;margin-top:12px;font-size:12px;color:#8fa0c4}
+@media (max-width:520px){#modes{flex-direction:column}}
+</style>
+</head>
+<body>
+<div id="start">
+<h1>🏎️ NITRO ESCAPE</h1>
+<p>An expanding red zone is right behind you. Survive as long as possible and keep your speed up.<br><br>
+🟢 Green canister = quiz question, correct answers give a controlled speed boost<br>
+🔴 Red canister = trap, costs a large chunk of your escape distance<br><br>
+Steer: A/D or ←/→ &nbsp; Speed: W/S or ↑/↓<br>
+Mobile: use the on-screen buttons</p>
+<div id="modes">
+<button class="mode" id="modeInf" style="--c:#39ff6a"><b>Infinite</b><span>Drive until the red zone catches you. Questions keep coming, there is no finish line.</span><small id="bestInf">Best: 0m</small></button>
+<button class="mode" id="modeQuiz" style="--c:#2f8bff"><b>Quiz</b><span>Answer all 15 questions to escape and win.</span><small id="bestQuiz">Best: 0m</small></button>
+</div>
+</div>
+<div id="hud">
+<div id="barWrap"><div id="bar"></div><div id="barLabel">DANGER ZONE</div></div>
+<div id="score">Distance: 0m &nbsp;|&nbsp; Best: 0m</div>
+</div>
+<div id="flash"></div>
+<div id="speedVignette"></div>
+<div id="speedLines"></div>
+<div id="boostMsg">BOOST!</div>
+<div id="quiz"><div id="qbox"><div id="qcount">Question 1/15</div><div id="qtext"></div><div id="choices"></div></div></div>
+<div id="over">
+<h1 id="overTitle">CAUGHT BY THE RED ZONE</h1>
+<p id="finalScore"></p>
+<p id="finalDist">Distance: 0m</p>
+<p id="finalBest">Best: 0m</p>
+<div id="overBtns"><button id="restart">DRIVE AGAIN</button><button id="menuBtn">CHANGE MODE</button></div>
+</div>
+<div id="mobileControls" aria-label="Mobile driving controls">
+  <div class="mobilePad">
+    <button class="mobileBtn" id="leftBtn" aria-label="Steer left">◀</button>
+    <button class="mobileBtn" id="rightBtn" aria-label="Steer right">▶</button>
+  </div>
+  <div class="mobilePad speed">
+    <button class="mobileBtn" id="upBtn" aria-label="Accelerate">▲</button>
+    <button class="mobileBtn" id="downBtn" aria-label="Slow down or reverse">▼</button>
+  </div>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+let scene,camera,renderer,car,camX=0,shakeMag=0;
+const input={left:false,right:false,up:false,down:false};
+let carX=0;
+let forwardSpeed=42,baseSpeed=42,minSpeed=24,maxSpeed=56;
+let baseRedZoneSpeed=65,redZoneSpeed=65;
+let gap=100,elapsed=0,totalDistance=0,boostTimer=0;
+let cameraFov=74;
+let paused=false,caught=false,gameWon=false,gameStarted=false;
+let mode='infinite';
+let spawnTimer=1.5;
+let bestDist=0;
+const BEST_KEY={infinite:'nitroBest',quiz:'nitroBestQuiz'},bests={infinite:0,quiz:0};
+try{for(const m in BEST_KEY)bests[m]=parseInt(localStorage.getItem(BEST_KEY[m])||'0',10)||0;}catch(e){}
+const ROAD_HALF=3.75;
+
+const QUESTIONS=[
+["What is the main function of a router?","Connects different networks and directs data to the correct destination.","Stores data permanently for later use.","Connects devices within the same network only.","Converts digital signals into sound waves."],
+["What is a switch used for in a network?","Connects multiple devices within the same network and sends data to the right one.","Connects a whole network to the internet.","Blocks all incoming network traffic.","Translates domain names into IP addresses."],
+["What is an IP address?","A unique address used to identify a device on a network.","A password used to access Wi-Fi.","A type of network cable connector.","The physical location of a server."],
+["What is Wi-Fi?","A wireless technology that lets devices connect to a network without cables.","A wired technology for Ethernet only.","A type of antivirus software.","A brand of network router."],
+["What is a network topology?","The arrangement or structure of devices and connections in a network.","The speed data travels through a network.","A security protocol for encrypting data.","The color-coding of network cables."],
+["What is the function of a modem?","Connects a network to an ISP and enables internet access.","Stores backup copies of network data.","Connects two computers directly, no internet.","Blocks unauthorized users from a network."],
+["What is a server?","A computer that provides services, data, or resources to other computers on a network.","A device that only ever receives data.","A cable used to connect two routers.","A type of wireless signal booster."],
+["What is a client in a computer network?","A device that requests and uses services provided by a server.","A device that only provides services to others.","A physical cable connecting two servers.","A type of firewall software."],
+["What is the purpose of a firewall?","Protects a network by monitoring and controlling incoming and outgoing traffic.","Increases internet speed automatically.","Stores files for later retrieval.","Connects multiple LANs into a WAN."],
+["What is a network cable used for?","Connecting devices and transferring data between them.","Boosting Wi-Fi signal strength wirelessly.","Cooling down server hardware.","Powering on network devices only."],
+["What does LAN stand for, and where is it used?","Local Area Network; used in homes, schools, and offices.","Long Access Network; used for satellites.","Local Access Node; data centers only.","Linked Area Network; connects continents."],
+["What's the main difference between LAN and WAN?","LAN covers a small area; WAN covers a very large area like countries.","LAN is wireless only; WAN is wired only.","LAN is for phones; WAN is for computers.","There is no real difference."],
+["What does MAN stand for, and what area does it cover?","Metropolitan Area Network; connects LANs within a city.","Main Access Network; covers one building.","Mobile Area Network; cellular towers only.","Managed Access Node; a single device."],
+["What is a PAN used for? Give an example.","Personal Area Network for devices around one person, e.g. phone to Bluetooth earbuds.","Public Area Network connecting entire cities.","Primary Access Network used by ISPs only.","Protected Access Network for banking security."],
+["What is DNS used for in a computer network?","Translates domain names like example.com into IP addresses.","Encrypts every file stored on a computer.","Measures the physical length of network cables.","Provides electrical power to a router."]
+];
+const TOTAL_QUESTIONS=15;
+let sessionQuestions=[];
+let questionNumber=0;
+let questionsAnswered=0;
+let correctAnswers=0;
+function buildQuestionSession(){
+  sessionQuestions=shuffle(QUESTIONS.slice());
+  questionNumber=0;
+}
+let askedIdx=new Set();
+function getNextQuestion(){
+  if(mode==='quiz'){
+    if(questionNumber>=TOTAL_QUESTIONS)return null;
+    return sessionQuestions[questionNumber++];
+  }
+  let avail=QUESTIONS.map((q,i)=>i).filter(i=>!askedIdx.has(i));
+  if(avail.length===0){askedIdx.clear();avail=QUESTIONS.map((q,i)=>i);}
+  const idx=avail[Math.floor(Math.random()*avail.length)];
+  askedIdx.add(idx);
+  return QUESTIONS[idx];
+}
+function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));const t=a[i];a[i]=a[j];a[j]=t;}return a;}
+
+let SAFE_COLOR,DANGER_COLOR,_tmpColor;
+const dashes=[],poles=[],obstacles=[];
+const DASH_N=28,DASH_SP=7,POLE_N=18,POLE_SP=17;
+
+function buildCar(){
+  const g=new THREE.Group();
+  const paint=new THREE.MeshStandardMaterial({color:0xff2233,metalness:0.5,roughness:0.35});
+  const body=new THREE.Mesh(new THREE.BoxGeometry(1.8,0.5,3.6),paint);
+  body.position.y=0.45; g.add(body);
+  const nose=new THREE.Mesh(new THREE.BoxGeometry(1.6,0.35,0.9),paint);
+  nose.position.set(0,0.32,1.9); g.add(nose);
+  const cabin=new THREE.Mesh(new THREE.BoxGeometry(1.35,0.42,1.5),new THREE.MeshStandardMaterial({color:0x101418,metalness:0.6,roughness:0.25}));
+  cabin.position.set(0,0.85,-0.15); g.add(cabin);
+  const spoiler=new THREE.Mesh(new THREE.BoxGeometry(1.7,0.08,0.32),paint);
+  spoiler.position.set(0,0.95,1.75); g.add(spoiler);
+  const wheelGeo=new THREE.CylinderGeometry(0.42,0.42,0.36,14);
+  const wheelMat=new THREE.MeshStandardMaterial({color:0x0d0d0d});
+  const wheels=[];
+  const wp=[[-0.92,0.42,1.15],[0.92,0.42,1.15],[-0.92,0.42,-1.15],[0.92,0.42,-1.15]];
+  wp.forEach(p=>{
+    const w=new THREE.Mesh(wheelGeo,wheelMat);
+    w.rotation.z=Math.PI/2;
+    w.position.set(p[0],p[1],p[2]);
+    g.add(w); wheels.push(w);
+  });
+  const headMat=new THREE.MeshStandardMaterial({color:0xffffcc,emissive:0xffffaa,emissiveIntensity:1});
+  [[-0.62,0.45,2.35],[0.62,0.45,2.35]].forEach(p=>{
+    const h=new THREE.Mesh(new THREE.BoxGeometry(0.28,0.14,0.06),headMat);
+    h.position.set(p[0],p[1],p[2]); g.add(h);
+  });
+  const tailMat=new THREE.MeshStandardMaterial({color:0xff3333,emissive:0xff0000,emissiveIntensity:0.8});
+  [[-0.7,0.5,-1.82],[0.7,0.5,-1.82]].forEach(p=>{
+    const t=new THREE.Mesh(new THREE.BoxGeometry(0.24,0.12,0.06),tailMat);
+    t.position.set(p[0],p[1],p[2]); g.add(t);
+  });
+  g.userData.wheels=wheels;
+  return g;
+}
+
+function buildPole(side){
+  const g=new THREE.Group();
+  const pole=new THREE.Mesh(new THREE.CylinderGeometry(0.09,0.09,3.2,6),new THREE.MeshStandardMaterial({color:0x999999}));
+  pole.position.y=1.6; g.add(pole);
+  const top=new THREE.Mesh(new THREE.BoxGeometry(0.32,0.32,0.32),new THREE.MeshStandardMaterial({color:0xffaa00,emissive:0xffaa00,emissiveIntensity:0.6}));
+  top.position.y=3.25; g.add(top);
+  g.position.x=side*6.2;
+  return g;
+}
+
+function buildObstacle(){
+  const mat=new THREE.MeshStandardMaterial({color:0x22ff66,emissive:0x22ff66,emissiveIntensity:0.7,roughness:0.4});
+  const mesh=new THREE.Mesh(new THREE.CylinderGeometry(0.3,0.4,1.1,10),mat);
+  mesh.visible=false;
+  return {mesh:mesh,mat:mat,active:false,processed:false,type:'real'};
+}
+
+function initScene(){
+  scene=new THREE.Scene();
+  SAFE_COLOR=new THREE.Color(0x16233a);
+  DANGER_COLOR=new THREE.Color(0x5c0000);
+  _tmpColor=new THREE.Color();
+  scene.background=new THREE.Color(0x16233a);
+  scene.fog=new THREE.Fog(0x16233a,5,260);
+  camera=new THREE.PerspectiveCamera(74,innerWidth/innerHeight,0.1,500);
+  camera.position.set(0,4.25,7.4);
+  renderer=new THREE.WebGLRenderer({antialias:true});
+  renderer.setSize(innerWidth,innerHeight);
+  renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+  document.body.appendChild(renderer.domElement);
+  scene.add(new THREE.AmbientLight(0xffffff,0.75));
+  const dl=new THREE.DirectionalLight(0xffffff,0.85);
+  dl.position.set(6,12,4);
+  scene.add(dl);
+
+  const ground=new THREE.Mesh(new THREE.PlaneGeometry(300,700),new THREE.MeshStandardMaterial({color:0x2f5233}));
+  ground.rotation.x=-Math.PI/2; ground.position.set(0,-0.02,-150);
+  scene.add(ground);
+  const road=new THREE.Mesh(new THREE.PlaneGeometry(10.4,700),new THREE.MeshStandardMaterial({color:0x2b2b31}));
+  road.rotation.x=-Math.PI/2; road.position.set(0,0,-150);
+  scene.add(road);
+  [-5.1,5.1].forEach(x=>{
+    const edge=new THREE.Mesh(new THREE.PlaneGeometry(0.3,700),new THREE.MeshStandardMaterial({color:0xffcc33}));
+    edge.rotation.x=-Math.PI/2; edge.position.set(x,0.01,-150);
+    scene.add(edge);
+  });
+
+  for(let i=0;i<DASH_N;i++){
+    const d=new THREE.Mesh(new THREE.BoxGeometry(0.25,0.05,2.2),new THREE.MeshStandardMaterial({color:0xffffff}));
+    d.position.set(0,0.03,-i*DASH_SP);
+    dashes.push(d); scene.add(d);
+  }
+  for(let i=0;i<POLE_N;i++){
+    const p=buildPole(i%2===0?1:-1);
+    p.position.z=-i*POLE_SP;
+    poles.push(p); scene.add(p);
+  }
+  for(let i=0;i<12;i++) {
+    const o=buildObstacle();
+    obstacles.push(o); scene.add(o.mesh);
+  }
+
+  car=buildCar();
+  scene.add(car);
+
+  window.addEventListener('resize',()=>{
+    camera.aspect=innerWidth/innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(innerWidth,innerHeight);
+  });
+}
+
+addEventListener('keydown',e=>{
+  const k=e.key;
+  if(k==='a'||k==='A'||k==='ArrowLeft')input.left=true;
+  if(k==='d'||k==='D'||k==='ArrowRight')input.right=true;
+  if(k==='w'||k==='W'||k==='ArrowUp')input.up=true;
+  if(k==='s'||k==='S'||k==='ArrowDown')input.down=true;
+});
+addEventListener('keyup',e=>{
+  const k=e.key;
+  if(k==='a'||k==='A'||k==='ArrowLeft')input.left=false;
+  if(k==='d'||k==='D'||k==='ArrowRight')input.right=false;
+  if(k==='w'||k==='W'||k==='ArrowUp')input.up=false;
+  if(k==='s'||k==='S'||k==='ArrowDown')input.down=false;
+});
+
+function updateHUD(){
+  const bar=document.getElementById('bar');
+  bar.style.width=gap+'%';
+  bar.style.background = gap>55 ? 'linear-gradient(90deg,#1fdc5a,#9be82a)' : gap>25 ? 'linear-gradient(90deg,#ffdd33,#ff9a1f)' : 'linear-gradient(90deg,#ff3b3b,#ff7a1f)';
+  document.getElementById('score').textContent=mode!=='quiz'?'Distance: '+Math.floor(totalDistance)+'m   |   Best: '+Math.max(bestDist,Math.floor(totalDistance))+'m':'Distance: '+Math.floor(totalDistance)+'m   |   Questions: '+questionsAnswered+'/'+TOTAL_QUESTIONS+'   |   Correct: '+correctAnswers;
+}
+
+function takeDamage(){
+  gap=Math.max(0,gap-30);
+  const flash=document.getElementById('flash');
+  flash.style.opacity=0.55;
+  setTimeout(()=>{flash.style.opacity=0;},150);
+  const bw=document.getElementById('barWrap');
+  bw.classList.remove('hit'); void bw.offsetWidth; bw.classList.add('hit');
+  updateHUD();
+  if(gap<=0){triggerCaught();}
+}
+
+function boost(){
+  // Correct answers still help, but the boost is intentionally modest.
+  gap=Math.min(100,gap+5);
+  boostTimer=0.7;
+  const bm=document.getElementById('boostMsg');
+  bm.style.transition='none';
+  bm.style.opacity=1;
+  bm.style.transform='translate(-50%,-50%) scale(1.2)';
+  requestAnimationFrame(()=>{
+    bm.style.transition='opacity .9s ease-out, transform .9s ease-out';
+    bm.style.opacity=0;
+    bm.style.transform='translate(-50%,-50%) scale(1.9)';
+  });
+}
+
+function showQuiz(){
+  paused=true;
+  const q=getNextQuestion();
+  if(!q){finishWin();return;}
+  if(mode==='quiz')document.getElementById('qcount').textContent='Question '+questionNumber+'/'+TOTAL_QUESTIONS;
+  document.getElementById('qtext').textContent=q[0];
+  const opts=shuffle([q[1],q[2],q[3],q[4]]);
+  const box=document.getElementById('choices');
+  box.innerHTML='';
+  opts.forEach(c=>{
+    const b=document.createElement('button');
+    b.className='choice';
+    b.textContent=c;
+    b.onclick=()=>{
+      const correct=c===q[1];
+      questionsAnswered++;
+      if(correct)correctAnswers++;
+      document.getElementById('quiz').style.display='none';
+      updateHUD();
+      if(mode==='quiz'&&questionsAnswered>=TOTAL_QUESTIONS){
+        finishWin();
+        return;
+      }
+      paused=false;
+      if(correct){boost();}else{takeDamage();}
+    };
+    box.appendChild(b);
+  });
+  document.getElementById('quiz').style.display='flex';
+}
+
+function showEndScreen(won){
+  const dist=Math.floor(totalDistance);
+  if(dist>bestDist){bestDist=bests[mode]=dist; try{localStorage.setItem(BEST_KEY[mode],String(dist));}catch(e){}}
+  const over=document.getElementById('over');
+  const title=document.getElementById('overTitle');
+  title.textContent=won?'YOU ESCAPED!':'CAUGHT BY THE RED ZONE';
+  title.style.color=won?'#39ff6a':'#ff3b3b';
+  document.getElementById('finalScore').style.display=mode==='quiz'?'block':'none';
+  document.getElementById('finalScore').textContent='Score: '+correctAnswers+'/'+TOTAL_QUESTIONS+' correct';
+  document.getElementById('finalDist').textContent='Distance: '+dist+'m';
+  document.getElementById('finalBest').textContent='Best: '+bestDist+'m';
+  over.style.display='flex';
+  requestAnimationFrame(()=>{over.style.opacity=1;});
+  setTimeout(()=>{document.getElementById('finalScore').style.opacity=1;},250);
+  setTimeout(()=>{document.getElementById('finalDist').style.opacity=1;},550);
+  setTimeout(()=>{document.getElementById('finalBest').style.opacity=1;},850);
+  setTimeout(()=>{const b=document.getElementById('overBtns'); b.style.opacity=1; b.style.pointerEvents='auto';},1150);
+}
+function triggerCaught(){
+  if(caught||gameWon)return;
+  caught=true;
+  paused=true;
+  showEndScreen(false);
+}
+function finishWin(){
+  if(gameWon)return;
+  gameWon=true;
+  paused=true;
+  document.getElementById('quiz').style.display='none';
+  showEndScreen(true);
+}
+
+function resetGame(){
+  gap=100; forwardSpeed=baseSpeed; cameraFov=74; camera.fov=74; camera.updateProjectionMatrix(); carX=0; totalDistance=0; elapsed=0; boostTimer=0; caught=false; gameWon=false; paused=false; questionsAnswered=0; correctAnswers=0;
+  input.left=input.right=input.up=input.down=false;
+  obstacles.forEach(o=>{o.active=false; o.processed=false; o.mesh.visible=false;});
+  spawnTimer=1.4;
+  buildQuestionSession(); askedIdx.clear();
+  const over=document.getElementById('over');
+  over.style.opacity=0;
+  document.getElementById('finalScore').style.opacity=0;
+  document.getElementById('finalDist').style.opacity=0;
+  document.getElementById('finalBest').style.opacity=0;
+  document.getElementById('overTitle').style.color='#ff3b3b';
+  const rb=document.getElementById('overBtns');
+  rb.style.opacity=0; rb.style.pointerEvents='none';
+  document.getElementById('qcount').textContent='Question 1/'+TOTAL_QUESTIONS;
+  updateHUD();
+  setTimeout(()=>{over.style.display='none';},550);
+}
+
+function update(dt){
+  elapsed+=dt;
+  redZoneSpeed=baseRedZoneSpeed+elapsed*0.060;
+
+  if(input.left)carX-=8.3*dt;
+  if(input.right)carX+=8.3*dt;
+  carX=Math.max(-ROAD_HALF,Math.min(ROAD_HALF,carX));
+
+  if(boostTimer>0){
+    boostTimer-=dt;
+    const target=redZoneSpeed+32;
+    forwardSpeed+=(target-forwardSpeed)*Math.min(1,dt*6);
+  }else{
+    let target=baseSpeed;
+    if(input.up)target=maxSpeed;
+    else if(input.down)target=minSpeed;
+    // A little natural speed drift keeps the escape feeling less flat.
+    target += Math.sin(elapsed*1.7)*1.5;
+    forwardSpeed+=(target-forwardSpeed)*Math.min(1,dt*4.0);
+  }
+
+  car.position.x+=(carX-car.position.x)*Math.min(1,dt*7);
+  car.rotation.z=(carX-car.position.x)*-0.15;
+  car.userData.wheels.forEach(w=>{w.rotation.x+=forwardSpeed*dt*1.8;});
+
+  const dz=forwardSpeed*dt;
+  totalDistance+=dz;
+
+  dashes.forEach(d=>{d.position.z+=dz; if(d.position.z>20)d.position.z-=DASH_N*DASH_SP;});
+  poles.forEach(p=>{p.position.z+=dz; if(p.position.z>20)p.position.z-=POLE_N*POLE_SP;});
+  obstacles.forEach(o=>{
+    if(o.active){
+      o.mesh.position.z+=dz;
+      o.mesh.rotation.y+=dt*2.4;
+      if(o.mesh.position.z>15){o.active=false; o.mesh.visible=false;}
+    }
+  });
+
+  spawnTimer-=dt;
+  if(spawnTimer<=0){
+    spawnTimer=0.55+Math.random()*0.65;
+    const free=obstacles.find(o=>!o.active);
+    if(free){
+      free.active=true; free.processed=false; free.mesh.visible=true;
+      free.mesh.position.set((Math.random()*2-1)*ROAD_HALF*0.84,0.55,-185-Math.random()*50);
+      free.type=Math.random()<0.33?'real':'fake';
+      const col=free.type==='real'?0x22ff66:0xff2233;
+      free.mat.color.set(col);
+      free.mat.emissive.set(col);
+    }
+  }
+
+  obstacles.forEach(o=>{
+    if(o.active&&!o.processed){
+      const dzc=Math.abs(o.mesh.position.z-0.4);
+      const dxc=Math.abs(o.mesh.position.x-car.position.x);
+      if(dzc<1.7&&dxc<1.55){
+        o.processed=true; o.active=false; o.mesh.visible=false;
+        if(o.type==='real'){showQuiz();}else{takeDamage();}
+      }
+    }
+  });
+
+  gap-=(redZoneSpeed-forwardSpeed)*dt*0.90;
+  if(gap>100)gap=100;
+  if(gap<0)gap=0;
+  if(gap<=0){triggerCaught();}
+
+  shakeMag = gap<30 ? Math.pow((30-gap)/30,2)*0.78 : 0;
+  camX+=(car.position.x-camX)*Math.min(1,dt*5);
+  const speedT=Math.max(0,Math.min(1,(forwardSpeed-minSpeed)/(maxSpeed-minSpeed)));
+  const targetFov=74+speedT*21+(boostTimer>0?4:0);
+  cameraFov+=(targetFov-cameraFov)*Math.min(1,dt*7);
+  camera.fov=cameraFov;
+  const bob=Math.sin(elapsed*15)*(0.018+speedT*0.055);
+  camera.position.set(camX+(Math.random()-0.5)*shakeMag*2,4.15+bob+(Math.random()-0.5)*shakeMag,7.25-speedT*0.85+(Math.random()-0.5)*shakeMag);
+  camera.lookAt(camX,0.72,-12-speedT*7);
+  document.getElementById('speedVignette').style.opacity=String(0.08+speedT*0.48+(boostTimer>0?0.12:0));
+  document.getElementById('speedLines').style.opacity=String(Math.max(0,(speedT-0.12)*0.9)+(boostTimer>0?0.18:0));
+
+  const dangerT=1-gap/100;
+  _tmpColor.copy(SAFE_COLOR).lerp(DANGER_COLOR,dangerT);
+  scene.fog.color.copy(_tmpColor);
+  scene.background.copy(_tmpColor);
+  scene.fog.far=260-dangerT*195;
+
+  updateHUD();
+}
+
+let lastT=performance.now();
+function animate(now){
+  requestAnimationFrame(animate);
+  const dt=Math.min((now-lastT)/1000,0.05);
+  lastT=now;
+  if(gameStarted&&!paused&&!caught)update(dt);
+  renderer.render(scene,camera);
+}
+
+initScene();
+buildQuestionSession();
+updateHUD();
+animate(performance.now());
+
+function refreshBests(){
+  document.getElementById('bestInf').textContent='Best: '+bests.infinite+'m';
+  document.getElementById('bestQuiz').textContent='Best: '+bests.quiz+'m';
+}
+function startMode(m){
+  mode=m; bestDist=bests[m];
+  document.getElementById('qcount').style.display=m==='quiz'?'block':'none';
+  resetGame();
+  document.getElementById('start').style.display='none';
+  gameStarted=true;
+}
+document.getElementById('modeInf').onclick=()=>startMode('infinite');
+document.getElementById('modeQuiz').onclick=()=>startMode('quiz');
+document.getElementById('menuBtn').onclick=()=>{
+  gameStarted=false; resetGame(); refreshBests();
+  document.getElementById('start').style.display='flex';
+};
+refreshBests();
+function bindMobileControl(id,key){
+  const el=document.getElementById(id);
+  const on=()=>{input[key]=true;el.classList.add('active');};
+  const off=()=>{input[key]=false;el.classList.remove('active');};
+  ['pointerdown','touchstart'].forEach(ev=>el.addEventListener(ev,e=>{e.preventDefault();on();},{passive:false}));
+  ['pointerup','pointercancel','pointerleave','touchend','touchcancel'].forEach(ev=>el.addEventListener(ev,e=>{e.preventDefault();off();},{passive:false}));
+}
+bindMobileControl('leftBtn','left');
+bindMobileControl('rightBtn','right');
+bindMobileControl('upBtn','up');
+bindMobileControl('downBtn','down');
+document.getElementById('restart').onclick=resetGame;
+</script>
+</body>
+</html>
